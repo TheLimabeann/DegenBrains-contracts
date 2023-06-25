@@ -50,7 +50,6 @@ library TransferHelper {
 interface IDegenBrainsRouter02 {
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
-    function swapFeeReward() external pure returns (address);
 
     function addLiquidity(
         address tokenA,
@@ -262,7 +261,7 @@ library DegenBrainsLibrary {
                 hex'ff',
                 factory,
                 keccak256(abi.encodePacked(token0, token1)),
-                hex'7ae6954210575e79ea2402d23bc6a59c4146a6e6296118aa8b99c747afec8acf' // init code hash
+                hex'e2472baa686d3cf019f51d07cb02ce8cb8ba8d53819bdb4d3db6960968091672' // init code hash
             ))));
     }
 
@@ -389,15 +388,11 @@ contract Ownable {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 }
-interface ISwapFeeReward {
-    function swap(address account, address input, address output, uint256 amount) external returns (bool);
-}
 contract DegenBrainsRouter02 is IDegenBrainsRouter02, Ownable {
     using SafeMath for uint;
 
     address public immutable override factory;
     address public immutable override WETH;
-    address public override swapFeeReward;
 
     modifier ensure(uint deadline) {
         require(deadline >= block.timestamp, 'DegenBrainsV2Router: EXPIRED');
@@ -411,10 +406,6 @@ contract DegenBrainsRouter02 is IDegenBrainsRouter02, Ownable {
 
     receive() external payable {
         assert(msg.sender == WETH); // only accept ETH via fallback from the WETH contract
-    }
-
-    function setSwapFeeReward(address _swapFeeReward) public onlyOwner {
-        swapFeeReward = _swapFeeReward;
     }
 
     // **** ADD LIQUIDITY ****
@@ -603,9 +594,6 @@ contract DegenBrainsRouter02 is IDegenBrainsRouter02, Ownable {
             (address token0,) = DegenBrainsLibrary.sortTokens(input, output);
             uint amountOut = amounts[i + 1];
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
-            if (swapFeeReward != address(0)) {
-                ISwapFeeReward(swapFeeReward).swap(msg.sender, input, output, amountOut);
-            }
             address to = i < path.length - 2 ? DegenBrainsLibrary.pairFor(factory, output, path[i + 2]) : _to;
             IDegenBrainsPair(DegenBrainsLibrary.pairFor(factory, input, output)).swap(
                 amount0Out, amount1Out, to, new bytes(0)
@@ -721,9 +709,6 @@ contract DegenBrainsRouter02 is IDegenBrainsRouter02, Ownable {
             (uint reserveInput, uint reserveOutput) = input == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
             amountInput = IERC20(input).balanceOf(address(pair)).sub(reserveInput);
             amountOutput = DegenBrainsLibrary.getAmountOut(amountInput, reserveInput, reserveOutput, pair.swapFee());
-            }
-            if (swapFeeReward != address(0)) {
-                ISwapFeeReward(swapFeeReward).swap(msg.sender, input, output, amountOutput);
             }
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOutput) : (amountOutput, uint(0));
             address to = i < path.length - 2 ? DegenBrainsLibrary.pairFor(factory, output, path[i + 2]) : _to;
